@@ -1,0 +1,53 @@
+project_id = "church-fathers-app"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173"]
+jwt_expiry = 3600
+enable_signup = true
+
+[edge_runtime]
+enabled = true
+
+[functions.login]
+verify_jwt = false
+
+[functions.children]
+verify_jwt = true
+
+[functions.confession-reminders]
+verify_jwt = true
+
+[functions.mark-confession-reminder-read]
+verify_jwt = true
+
+[functions.snooze-confession-reminder]
+verify_jwt = true
+
+[functions.events]
+verify_jwt = true
+
+[functions.birthdays]
+verify_jwt = true
+
+[functions.stages]
+verify_jwt = true
+
+[functions.dashboard]
+verify_jwt = true

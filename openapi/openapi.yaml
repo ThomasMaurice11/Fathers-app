@@ -1,0 +1,721 @@
+openapi: 3.0.3
+info:
+  title: Church Fathers App API
+  description: >
+    All application data access is exposed as Supabase Edge Functions.
+    Every request needs BOTH the `Authorization: Bearer <user-access-token>`
+    header (a signed-in father's JWT) and the `apikey` header (your project's
+    publishable key). RLS still enforces per-father data isolation underneath.
+  version: "1.0.0"
+
+servers:
+  - url: https://vplfjbvhpjzvthpvscvx.supabase.co/functions/v1
+    description: Production (edit the ref if you use a different project)
+
+security:
+  - bearerAuth: []
+    apiKeyAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: The signed-in father's access_token (from /login or /auth/v1/token)
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: apikey
+      description: Your project's publishable (anon) key
+
+  schemas:
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, example: "abonakero@gmail.com" }
+        password: { type: string, format: password, example: "YourPassword123!" }
+
+    LoginResponse:
+      type: object
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        token_type: { type: string, example: "bearer" }
+        expires_in: { type: integer, example: 3600 }
+        expires_at: { type: integer }
+        user:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            email: { type: string, format: email }
+
+    Stage:
+      type: object
+      properties:
+        id: { type: integer, example: 9 }
+        name: { type: string, example: "1st Prep" }
+
+    Child:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string, example: "Michael Maurice" }
+        birthday: { type: string, format: date, nullable: true, example: "2010-08-20" }
+        marriage_contract: { type: string, format: date, nullable: true, example: "2030-06-15" }
+        age: { type: integer, nullable: true, example: 16 }
+        stage_id: { type: integer, example: 9 }
+        stage: { type: string, example: "1st Prep" }
+        latest_confession_at: { type: string, format: date-time, nullable: true }
+        days_since_last_confession: { type: integer, nullable: true }
+        needs_confession: { type: boolean }
+        confession_status:
+          type: string
+          enum: [NO_CONFESSION_RECORDED, OVERDUE, UP_TO_DATE]
+        reminder_is_read: { type: boolean }
+        reminder_snoozed_until: { type: string, format: date, nullable: true }
+
+    ChildCreate:
+      type: object
+      required: [name, stage_id]
+      properties:
+        name: { type: string, example: "Michael Maurice" }
+        birthday: { type: string, format: date, example: "2010-08-20" }
+        marriage_contract: { type: string, format: date, nullable: true, example: "2030-06-15" }
+        stage_id: { type: integer, example: 9 }
+
+    ChildUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        birthday: { type: string, format: date, nullable: true }
+        marriage_contract: { type: string, format: date, nullable: true }
+        stage_id: { type: integer }
+
+    ChildDetail:
+      allOf:
+        - $ref: '#/components/schemas/Child'
+        - type: object
+          properties:
+            confession_history:
+              type: array
+              items: { $ref: '#/components/schemas/ConfessionRecord' }
+            operations:
+              type: array
+              items: { $ref: '#/components/schemas/Operation' }
+
+    Operation:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string, example: "call" }
+        note: { type: string, nullable: true }
+        operation_date: { type: string, format: date }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    OperationCreate:
+      type: object
+      required: [type, operation_date]
+      properties:
+        type: { type: string, example: "call" }
+        note: { type: string, example: "Checked in" }
+        operation_date: { type: string, format: date, example: "2026-08-26" }
+
+    OperationUpdate:
+      type: object
+      properties:
+        type: { type: string, example: "visit" }
+        note: { type: string, example: "Updated note" }
+        operation_date: { type: string, format: date, example: "2026-08-26" }
+
+    ConfessionRecord:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        confession_at: { type: string, format: date-time }
+        notes: { type: string, nullable: true }
+        created_at: { type: string, format: date-time }
+
+    ConfessionCreate:
+      type: object
+      required: [confession_at]
+      properties:
+        confession_at: { type: string, format: date-time, example: "2026-08-23T10:00:00Z" }
+        notes: { type: string, example: "optional notes" }
+
+    ConfessionCreateResponse:
+      type: object
+      properties:
+        success: { type: boolean }
+        child_id: { type: string, format: uuid }
+        confession_id: { type: string, format: uuid }
+        confession_at: { type: string, format: date-time }
+        reminder_is_read: { type: boolean, example: false }
+        reminder_snoozed_until: { type: string, nullable: true, example: null }
+
+    SnoozeRequest:
+      type: object
+      required: [snoozed_until]
+      properties:
+        snoozed_until: { type: string, format: date, example: "2026-08-30" }
+
+    Notification:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        father_id: { type: string, format: uuid }
+        child_id: { type: string, format: uuid, nullable: true }
+        type: { type: string, enum: [GENERAL] }
+        title: { type: string, example: "Church Meeting" }
+        message: { type: string, nullable: true, example: "Meeting at 7 PM" }
+        notification_date: { type: string, format: date, example: "2026-08-20" }
+        status: { type: string, enum: [SCHEDULED, DELIVERED, READ] }
+        is_read: { type: boolean }
+        created_at: { type: string, format: date-time }
+
+    NotificationCreate:
+      type: object
+      required: [title, notification_date]
+      properties:
+        title: { type: string, example: "Church Meeting" }
+        message: { type: string, example: "Meeting at 7 PM" }
+        notification_date: { type: string, format: date, example: "2026-08-20" }
+        child_id: { type: string, format: uuid, nullable: true }
+
+    Birthday:
+      type: object
+      properties:
+        child_id: { type: string, format: uuid }
+        name: { type: string }
+        birthday: { type: string, format: date }
+        age: { type: integer }
+        stage_id: { type: integer }
+        stage: { type: string }
+
+    DashboardResponse:
+      type: object
+      properties:
+        children_count:
+          type: integer
+          example: 12
+          description: Total number of children owned by the authenticated father
+        children_needing_confession_count:
+          type: integer
+          example: 3
+          description: Number of children with an overdue or missing confession
+        birthdays_this_week_count:
+          type: integer
+          example: 2
+          description: Number of children with a birthday falling within the current week (Mon–Sun)
+        general_events_this_week_count:
+          type: integer
+          example: 4
+          description: Number of general events scheduled within the current week (Mon–Sun)
+        birthdays_yesterday:
+          type: array
+          items: { $ref: '#/components/schemas/Birthday' }
+        birthdays_today:
+          type: array
+          items: { $ref: '#/components/schemas/Birthday' }
+        birthdays_tomorrow:
+          type: array
+          items: { $ref: '#/components/schemas/Birthday' }
+        confession_reminders:
+          type: array
+          items: { $ref: '#/components/schemas/Child' }
+        general_events_this_week:
+          type: array
+          items: { $ref: '#/components/schemas/Notification' }
+
+    ErrorResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        error: { type: string, example: "Child not found or not owned by you" }
+
+  responses:
+    Unauthorized:
+      description: Missing/invalid Authorization or apikey header
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: Not found or not owned by the authenticated father
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+paths:
+  /login:
+    post:
+      summary: Get an access token (wraps Supabase Auth password grant)
+      description: >
+        The only endpoint that does NOT require Authorization/apikey headers —
+        verify_jwt is disabled for this function since there's no token yet.
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /stages:
+    get:
+      summary: List predefined stages (read-only)
+      tags: [Stages]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Stage' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /children:
+    get:
+      summary: List my children
+      tags: [Children]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Child' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      summary: Create a child
+      tags: [Children]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChildCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data: { $ref: '#/components/schemas/Child' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /children/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Get child detail + confession history + operations
+      tags: [Children]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: '#/components/schemas/ChildDetail' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      summary: Update a child
+      tags: [Children]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChildUpdate' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data: { $ref: '#/components/schemas/Child' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      summary: Delete a child
+      tags: [Children]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  child_id: { type: string, format: uuid }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /children/{id}/confessions:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Get confession history for a child
+      tags: [Confessions]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/ConfessionRecord' }
+    post:
+      summary: Record a confession (atomic reminder reset)
+      tags: [Confessions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ConfessionCreate' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ConfessionCreateResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/NotFound' }
+
+  /children/{id}/operations:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Get operations for a child
+      tags: [Operations]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Operation' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      summary: Create an operation for a child
+      tags: [Operations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OperationCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data: { $ref: '#/components/schemas/Operation' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/NotFound' }
+
+  /children/{id}/operations/{operationId}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: operationId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      summary: Update an operation
+      tags: [Operations]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/OperationUpdate' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data: { $ref: '#/components/schemas/Operation' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    delete:
+      summary: Delete an operation
+      tags: [Operations]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  operation_id: { type: string, format: uuid }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /confession-reminders:
+    get:
+      summary: Active confession reminders (dynamically calculated)
+      tags: [Confession Reminders]
+      parameters:
+        - name: unread_only
+          in: query
+          schema: { type: boolean }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Child' }
+
+  /mark-confession-reminder-read/{childId}:
+    parameters:
+      - name: childId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      summary: Mark a confession reminder as read
+      tags: [Confession Reminders]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  child_id: { type: string, format: uuid }
+                  reminder_is_read: { type: boolean }
+        '403': { $ref: '#/components/responses/NotFound' }
+
+  /snooze-confession-reminder/{childId}:
+    parameters:
+      - name: childId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      summary: Snooze / extend a confession reminder
+      tags: [Confession Reminders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SnoozeRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  child_id: { type: string, format: uuid }
+                  reminder_snoozed_until: { type: string, format: date }
+        '403': { $ref: '#/components/responses/NotFound' }
+
+  /notifications:
+    get:
+      summary: List my general events (optionally by date)
+      tags: [Notifications]
+      parameters:
+        - name: date
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Notification' }
+    post:
+      summary: Create a general event
+      tags: [Notifications]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/NotificationCreate' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data: { $ref: '#/components/schemas/Notification' }
+
+  /notifications/general/today:
+    get:
+      summary: Today's general events
+      tags: [Notifications]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Notification' }
+
+  /notifications/general:
+    get:
+      summary: General events for a specific date
+      tags: [Notifications]
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Notification' }
+
+  /notifications/{id}/read:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      summary: Mark a general event as read
+      tags: [Notifications]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data: { $ref: '#/components/schemas/Notification' }
+        '404': { $ref: '#/components/responses/NotFound' }
+
+  /birthdays/today:
+    get:
+      summary: Today's birthdays
+      tags: [Birthdays]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Birthday' }
+
+  /birthdays:
+    get:
+      summary: Birthdays for a selected date (month/day only, year ignored)
+      tags: [Birthdays]
+      parameters:
+        - name: date
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Birthday' }
+
+  /dashboard:
+    get:
+      summary: Combined dashboard payload
+      tags: [Dashboard]
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DashboardResponse' }
