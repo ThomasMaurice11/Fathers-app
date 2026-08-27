@@ -16,6 +16,7 @@
 
 import { corsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { getAuthenticatedUser } from "../_shared/supabaseClient.ts";
+import { enrichIdsWithNames } from "../_shared/names.ts";
 
 function childNameExistsMessage() {
   return "This child already exists";
@@ -87,7 +88,10 @@ Deno.serve(async (req: Request) => {
         return errorResponse(error.message, status);
       }
 
-      return jsonResponse({ success: true, data }, 201);
+      return jsonResponse({
+        success: true,
+        data: await enrichIdsWithNames(supabase, data),
+      }, 201);
     }
 
     if (subresourceId && req.method === "PATCH") {
@@ -126,7 +130,10 @@ Deno.serve(async (req: Request) => {
       if (error) return errorResponse(error.message, 400);
       if (!data) return errorResponse("Operation not found or not owned by you", 404);
 
-      return jsonResponse({ success: true, data });
+      return jsonResponse({
+        success: true,
+        data: await enrichIdsWithNames(supabase, data),
+      });
     }
 
     if (subresourceId && req.method === "DELETE") {
@@ -186,6 +193,9 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({
         success: true,
         child_id: row.child_id,
+        child_name: row.child_name,
+        father_id: row.father_id,
+        father_name: row.father_name,
         confession_id: row.confession_id,
         confession_at: row.confession_at,
         reminder_is_read: row.reminder_is_read,
@@ -267,7 +277,10 @@ Deno.serve(async (req: Request) => {
       }
       if (!data) return errorResponse("Child not found or not owned by you", 404);
 
-      return jsonResponse({ success: true, data });
+      return jsonResponse({
+        success: true,
+        data: await enrichIdsWithNames(supabase, data),
+      });
     }
 
     if (req.method === "DELETE") {
@@ -275,13 +288,24 @@ Deno.serve(async (req: Request) => {
         .from("children")
         .delete()
         .eq("id", id)
-        .select("id")
+        .select("id, name, father_id")
         .maybeSingle();
 
       if (error) return errorResponse(error.message, 400);
       if (!data) return errorResponse("Child not found or not owned by you", 404);
 
-      return jsonResponse({ success: true, child_id: id });
+      const enriched = await enrichIdsWithNames(supabase, {
+        child_id: data.id,
+        father_id: data.father_id,
+      }) as Record<string, unknown>;
+
+      return jsonResponse({
+        success: true,
+        child_id: data.id,
+        child_name: data.name,
+        father_id: data.father_id,
+        father_name: enriched.father_name ?? null,
+      });
     }
 
     return errorResponse("Method not allowed", 405);
@@ -351,7 +375,10 @@ Deno.serve(async (req: Request) => {
       return mapChildWriteError(error);
     }
 
-    return jsonResponse({ success: true, data }, 201);
+    return jsonResponse({
+      success: true,
+      data: await enrichIdsWithNames(supabase, data),
+    }, 201);
   }
 
   return errorResponse("Method not allowed", 405);

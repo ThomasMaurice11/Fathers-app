@@ -42,6 +42,24 @@ Deno.serve(async (req: Request) => {
     return errorResponse(data.error_description ?? data.msg ?? "Login failed", authRes.status);
   }
 
+  // Load display name from profiles (father_name)
+  let fatherName: string | null = null;
+  if (data.user?.id) {
+    const profileRes = await fetch(
+      `${supabaseUrl}/rest/v1/profiles?id=eq.${data.user.id}&select=full_name`,
+      {
+        headers: {
+          apikey: anonKey,
+          Authorization: `Bearer ${data.access_token}`,
+        },
+      },
+    );
+    if (profileRes.ok) {
+      const profiles = await profileRes.json();
+      fatherName = profiles?.[0]?.full_name ?? null;
+    }
+  }
+
   return jsonResponse({
     access_token: data.access_token,
     refresh_token: data.refresh_token,
@@ -51,6 +69,7 @@ Deno.serve(async (req: Request) => {
     user: {
       id: data.user?.id,
       email: data.user?.email,
+      father_name: fatherName,
     },
   });
 });

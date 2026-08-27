@@ -7,6 +7,7 @@
 
 import { corsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { getAuthenticatedUser } from "../_shared/supabaseClient.ts";
+import { enrichIdsWithNames } from "../_shared/names.ts";
 
 function parsePath(req: Request) {
   const segments = new URL(req.url).pathname.split("/").filter(Boolean);
@@ -35,7 +36,7 @@ Deno.serve(async (req: Request) => {
       .order("created_at", { ascending: false });
 
     if (error) return errorResponse(error.message, 400);
-    return jsonResponse({ data });
+    return jsonResponse({ data: await enrichIdsWithNames(supabase, data) });
   }
 
   // ---------- /events/general?date=YYYY-MM-DD ----------
@@ -53,7 +54,7 @@ Deno.serve(async (req: Request) => {
       .order("created_at", { ascending: false });
 
     if (error) return errorResponse(error.message, 400);
-    return jsonResponse({ data });
+    return jsonResponse({ data: await enrichIdsWithNames(supabase, data) });
   }
 
   // ---------- /events/:id/read ----------
@@ -70,7 +71,10 @@ Deno.serve(async (req: Request) => {
     if (error) return errorResponse(error.message, 400);
     if (!data) return errorResponse("Event not found or not owned by you", 404);
 
-    return jsonResponse({ success: true, data });
+    return jsonResponse({
+      success: true,
+      data: await enrichIdsWithNames(supabase, data),
+    });
   }
 
   // ---------- /events ----------
@@ -83,7 +87,7 @@ Deno.serve(async (req: Request) => {
     }
     const { data, error } = await query.order("event_date", { ascending: false });
     if (error) return errorResponse(error.message, 400);
-    return jsonResponse({ data });
+    return jsonResponse({ data: await enrichIdsWithNames(supabase, data) });
   }
 
   if (req.method === "POST") {
@@ -118,7 +122,10 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (error) return errorResponse(error.message, 400);
-    return jsonResponse({ success: true, data }, 201);
+    return jsonResponse({
+      success: true,
+      data: await enrichIdsWithNames(supabase, data),
+    }, 201);
   }
 
   return errorResponse("Method not allowed", 405);

@@ -5,6 +5,7 @@
 
 import { corsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { getAuthenticatedUser } from "../_shared/supabaseClient.ts";
+import { enrichIdsWithNames } from "../_shared/names.ts";
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -33,9 +34,17 @@ Deno.serve(async (req: Request) => {
     return errorResponse(error.message, status);
   }
 
+  const enriched = await enrichIdsWithNames(supabase, {
+    child_id: data.id,
+    father_id: data.father_id,
+  }) as Record<string, unknown>;
+
   return jsonResponse({
     success: true,
     child_id: data.id,
+    child_name: data.name,
+    father_id: data.father_id,
+    father_name: enriched.father_name ?? null,
     reminder_is_read: data.reminder_is_read,
   });
 });
