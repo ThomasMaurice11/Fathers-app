@@ -108,7 +108,7 @@ $$;
 -- get_confession_reminders()
 drop function if exists public.get_confession_reminders(boolean);
 
-create function public.get_confession_reminders(p_unread_only boolean default false)
+create function public.get_confession_reminders(p_unread_only boolean default true)
 returns table (
   child_id uuid,
   name text,

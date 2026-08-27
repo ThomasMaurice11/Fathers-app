@@ -16,7 +16,7 @@ Deno.serve(async (req: Request) => {
   if (!user) return errorResponse("Unauthorized", 401);
 
   const url = new URL(req.url);
-  const unreadOnly = url.searchParams.get("unread_only") === "true";
+  const unreadOnly = url.searchParams.get("unread_only") !== "false";
 
   const { data, error } = await supabase.rpc("get_confession_reminders", {
     p_unread_only: unreadOnly,
