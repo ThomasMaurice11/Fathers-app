@@ -11,16 +11,12 @@ church-fathers-app/
 │   ├── migrations/          11 numbered SQL files, run in order
 │   └── functions/
 │       ├── _shared/                        cors.ts, supabaseClient.ts
-│       ├── login/
-│       ├── register/                       ADMIN-only user provisioning
-│       ├── forgot-password/
-│       ├── set-new-password/
-│       ├── change-password/
 │       ├── children/                       full CRUD + nested confessions
 │       ├── confession-reminders/           GET (dynamically calculated)
 │       ├── mark-confession-reminder-read/
 │       ├── snooze-confession-reminder/
 │       ├── events/                         general events CRUD
+│       ├── notifications/                  month calendar events
 │       ├── birthdays/
 │       ├── stages/                         read-only reference data
 │       └── dashboard/
@@ -30,17 +26,13 @@ church-fathers-app/
 ```
 
 **Every** data API is an Edge Function. The frontend never calls
-`supabase.from(...)` directly — Auth is via Edge Functions (`/login`,
-`/register`, password flows) or `supabase.auth.*` where needed for the
-recovery session after a reset email, and `supabase.functions.invoke(...)`
-for everything else. Most Edge Functions create a Supabase client using
-the caller's own JWT (see `_shared/supabaseClient.ts`), so RLS remains
-the underlying security boundary. `/register` additionally uses the
-service role **after** verifying the caller is an ADMIN, solely to call
-`auth.admin.createUser`.
-
-Public self-signup is **disabled** (`enable_signup = false`). Only an
-admin can create users via `POST /register`.
+`supabase.from(...)` directly — the only client-side Supabase calls are
+`supabase.auth.*` (sign up / log in / log out, which is Supabase Auth
+itself, not app data) and `supabase.functions.invoke(...)` for
+everything else. Each Edge Function still creates its Supabase client
+using the caller's own JWT (see `_shared/supabaseClient.ts`), so RLS is
+still the underlying security boundary — the function is a routing/
+validation layer in front of it, not a bypass of it.
 
 ---
 
@@ -147,11 +139,7 @@ a test user from your frontend and logging the session.
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/login` | Get an access token (email + password → access_token). No Bearer needed. |
-| POST | `/register` | **ADMIN only** — create a user (`email`, `password`, `full_name`, `role`: `FATHER` \| `ADMIN`) |
-| POST | `/forgot-password` | Send password-reset email (`{ "email" }`). No Bearer needed. |
-| POST | `/set-new-password` | Set password with recovery/session JWT (`{ "password" }`) |
-| POST | `/change-password` | Logged-in change (`{ "current_password", "new_password" }`) |
+| POST | `/login` | Get an access token (email + password → access_token). No auth headers needed. |
 | GET | `/children` | List my children (age, stage, confession status included) |
 | GET | `/children/:id` | Child detail + full confession history |
 | POST | `/children` | Create a child |
@@ -167,6 +155,8 @@ a test user from your frontend and logging the session.
 | GET | `/events/general?date=YYYY-MM-DD` | General events for a date |
 | POST | `/events` | Create a general event |
 | PATCH | `/events/:id/read` | Mark a general event as read |
+| GET | `/notifications/month` | Month events with full details (`?year=&month=`, defaults to current) |
+| POST | `/notifications` | Create a general event (`title`, `notification_date`, optional `message`/`child_id`) |
 | GET | `/birthdays/today` | Today's birthdays |
 | GET | `/birthdays?date=YYYY-MM-DD` | Birthdays for a date (month/day only) |
 | GET | `/stages` | List the 19 predefined stages (read-only) |
@@ -178,25 +168,6 @@ a test user from your frontend and logging the session.
 # get an access token (replaces the manual auth/v1/token curl)
 curl -X POST "$BASE/login" -H "apikey: $ANON_KEY" -H "Content-Type: application/json" \
   -d '{"email":"abonakero@gmail.com","password":"YourPassword123!"}'
-
-# admin creates a father (Bearer must be an ADMIN user's access_token)
-curl -X POST "$BASE/register" \
-  -H "Authorization: Bearer $ADMIN_TOKEN" -H "apikey: $ANON_KEY" -H "Content-Type: application/json" \
-  -d '{"email":"new.father@example.com","password":"TempPass123!","full_name":"Abouna Michael","role":"FATHER"}'
-
-# request password reset email
-curl -X POST "$BASE/forgot-password" -H "apikey: $ANON_KEY" -H "Content-Type: application/json" \
-  -d '{"email":"abonakero@gmail.com"}'
-
-# set new password (after recovery link; use the recovery access_token)
-curl -X POST "$BASE/set-new-password" \
-  -H "Authorization: Bearer $TOKEN" -H "apikey: $ANON_KEY" -H "Content-Type: application/json" \
-  -d '{"password":"NewPassword123!"}'
-
-# change password while logged in
-curl -X POST "$BASE/change-password" \
-  -H "Authorization: Bearer $TOKEN" -H "apikey: $ANON_KEY" -H "Content-Type: application/json" \
-  -d '{"current_password":"YourPassword123!","new_password":"NewPassword123!"}'
 
 # list children
 curl -X GET "$BASE/children" -H "Authorization: Bearer $TOKEN" -H "apikey: $ANON_KEY"
@@ -288,14 +259,7 @@ only in the raw `curl` examples above.
   cross-father access. `stages` is readable by any authenticated user
   and has no write policies at all — writes are impossible by
   construction, from the client or from any function.
-- **`SUPABASE_SERVICE_ROLE_KEY` is used only in `/register`**, after
-  `requireAdmin` confirms `profiles.role = ADMIN`, to call
-  `auth.admin.createUser`. All other Edge Functions use the caller's JWT
-  (see `_shared/supabaseClient.ts`).
-- **Admin bootstrap:** create the first user in Studio (or temporarily
-  enable signup), then promote them in SQL:
-  `update public.profiles set role = 'ADMIN' where email = 'you@example.com';`
-- **Password reset emails:** hosted projects use Supabase’s built-in
-  Auth mailer for light testing. For production, configure Custom SMTP
-  under Project Settings → Authentication. Local `supabase start` catches
-  mail in Inbucket instead of a real inbox.
+- **`SUPABASE_SERVICE_ROLE_KEY` is never used** anywhere in this repo —
+  every Edge Function creates its Supabase client with the caller's own
+  JWT (see `_shared/supabaseClient.ts`), so a function can never see
+  more than that father is allowed to see.
