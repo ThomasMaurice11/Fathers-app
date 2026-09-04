@@ -4,8 +4,9 @@ info:
   description: >
     All application data access is exposed as Supabase Edge Functions.
     Every request needs BOTH the `Authorization: Bearer <user-access-token>`
-    header (a signed-in father's JWT) and the `apikey` header (your project's
+    header (a signed-in user's JWT) and the `apikey` header (your project's
     publishable key). RLS still enforces per-father data isolation underneath.
+    User accounts are admin-provisioned via POST /register (public signup is disabled).
   version: "1.0.0"
 
 servers:
@@ -22,7 +23,7 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: The signed-in father's access_token (from /login or /auth/v1/token)
+      description: The signed-in user's access_token (from /login or /auth/v1/token). /register requires an ADMIN.
     apiKeyAuth:
       type: apiKey
       in: header
@@ -50,6 +51,56 @@ components:
           properties:
             id: { type: string, format: uuid }
             email: { type: string, format: email }
+            father_name: { type: string, nullable: true }
+
+    RegisterRequest:
+      type: object
+      required: [email, password, full_name, role]
+      properties:
+        email: { type: string, format: email, example: "new.father@example.com" }
+        password: { type: string, format: password, example: "TempPass123!" }
+        full_name: { type: string, example: "Abouna Michael" }
+        role:
+          type: string
+          enum: [FATHER, ADMIN]
+          example: FATHER
+
+    RegisterResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        data:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            email: { type: string, format: email }
+            full_name: { type: string }
+            role: { type: string, enum: [FATHER, ADMIN] }
+
+    ForgotPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email: { type: string, format: email, example: "abonakero@gmail.com" }
+
+    SetNewPasswordRequest:
+      type: object
+      required: [password]
+      properties:
+        password: { type: string, format: password, example: "NewPassword123!" }
+
+    ChangePasswordRequest:
+      type: object
+      required: [current_password, new_password]
+      properties:
+        current_password: { type: string, format: password }
+        new_password: { type: string, format: password, example: "NewPassword123!" }
+
+    MessageResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string }
 
     Stage:
       type: object
@@ -257,8 +308,8 @@ paths:
     post:
       summary: Get an access token (wraps Supabase Auth password grant)
       description: >
-        The only endpoint that does NOT require Authorization/apikey headers —
-        verify_jwt is disabled for this function since there's no token yet.
+        Does NOT require Authorization — verify_jwt is disabled for this
+        function since there's no token yet. Still send the apikey header.
       tags: [Auth]
       security: []
       requestBody:
@@ -273,6 +324,96 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/LoginResponse' }
         '400': { $ref: '#/components/responses/BadRequest' }
+
+  /register:
+    post:
+      summary: Create a new user (ADMIN only)
+      description: >
+        Provisions an Auth user and profile. Caller must have profiles.role = ADMIN.
+        Public self-signup is disabled. Pass role FATHER or ADMIN for the new user.
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegisterResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: Caller is not an ADMIN
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+
+  /forgot-password:
+    post:
+      summary: Request a password reset email
+      description: >
+        Sends a Supabase Auth recovery email when the address exists.
+        Always returns a generic success message (does not reveal whether
+        the email is registered). verify_jwt is disabled. Delivery uses the
+        project's built-in Auth mailer or custom SMTP from the Dashboard.
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ForgotPasswordRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessageResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+
+  /set-new-password:
+    post:
+      summary: Set a new password (recovery or logged-in session)
+      description: >
+        Call after the user opens the reset-password email link and the app
+        has a recovery session JWT, or with any valid access token.
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SetNewPasswordRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessageResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /change-password:
+    post:
+      summary: Change password while logged in
+      description: >
+        Verifies current_password against Auth, then sets new_password.
+      tags: [Auth]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ChangePasswordRequest' }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessageResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 
   /stages:
     get:
