@@ -21,6 +21,7 @@ church-fathers-app/
 │       ├── mark-confession-reminder-read/
 │       ├── snooze-confession-reminder/
 │       ├── events/                         general events CRUD
+│       ├── notifications/                  month calendar + create notification
 │       ├── birthdays/
 │       ├── stages/                         read-only reference data
 │       └── dashboard/
@@ -167,6 +168,8 @@ a test user from your frontend and logging the session.
 | GET | `/events/general?date=YYYY-MM-DD` | General events for a date |
 | POST | `/events` | Create a general event |
 | PATCH | `/events/:id/read` | Mark a general event as read |
+| GET | `/notifications/month` | Month events (`?year=&month=`, defaults to current UTC) |
+| POST | `/notifications` | Create notification (`title`, `notification_date`, optional `message`/`child_id`) |
 | GET | `/birthdays/today` | Today's birthdays |
 | GET | `/birthdays?date=YYYY-MM-DD` | Birthdays for a date (month/day only) |
 | GET | `/stages` | List the 19 predefined stages (read-only) |
@@ -227,6 +230,15 @@ curl -X POST "$BASE/snooze-confession-reminder/<child-uuid>" \
 curl -X POST "$BASE/events" \
   -H "Authorization: Bearer $TOKEN" -H "apikey: $ANON_KEY" -H "Content-Type: application/json" \
   -d '{"title":"Church Meeting","message":"Meeting at 7 PM","event_date":"2026-08-20"}'
+
+# month notifications calendar
+curl -X GET "$BASE/notifications/month?year=2026&month=9" \
+  -H "Authorization: Bearer $TOKEN" -H "apikey: $ANON_KEY"
+
+# create a notification (uses public.notifications)
+curl -X POST "$BASE/notifications" \
+  -H "Authorization: Bearer $TOKEN" -H "apikey: $ANON_KEY" -H "Content-Type: application/json" \
+  -d '{"title":"Church Meeting","message":"Meeting at 7 PM","notification_date":"2026-08-20"}'
 
 # today's birthdays
 curl -X GET "$BASE/birthdays/today" -H "Authorization: Bearer $TOKEN" -H "apikey: $ANON_KEY"
