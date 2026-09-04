@@ -719,26 +719,10 @@ paths:
         '403': { $ref: '#/components/responses/NotFound' }
 
   /notifications:
-    get:
-      summary: List my general events (optionally by date)
-      tags: [Notifications]
-      parameters:
-        - name: date
-          in: query
-          schema: { type: string, format: date }
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items: { $ref: '#/components/schemas/Notification' }
     post:
-      summary: Create a general event
+      summary: Create a general event/notification
+      description: >
+        Creates a row in public.notifications. Requires title and notification_date.
       tags: [Notifications]
       requestBody:
         required: true
@@ -755,6 +739,37 @@ paths:
                 properties:
                   success: { type: boolean }
                   data: { $ref: '#/components/schemas/Notification' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+
+  /notifications/month:
+    get:
+      summary: General events for a given month (full details)
+      tags: [Notifications]
+      parameters:
+        - name: year
+          in: query
+          required: false
+          schema: { type: integer, example: 2026 }
+          description: Calendar year (defaults to current UTC year)
+        - name: month
+          in: query
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 12, example: 9 }
+          description: Calendar month 1-12 (defaults to current UTC month)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/Notification' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 
   /notifications/general/today:
     get:
