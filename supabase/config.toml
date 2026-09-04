@@ -20,13 +20,26 @@ enabled = true
 site_url = "http://localhost:5173"
 additional_redirect_urls = ["http://localhost:5173"]
 jwt_expiry = 3600
-enable_signup = true
+# Public self-signup is disabled; only admins create users via /register.
+enable_signup = false
 
 [edge_runtime]
 enabled = true
 
 [functions.login]
 verify_jwt = false
+
+[functions.register]
+verify_jwt = true
+
+[functions.forgot-password]
+verify_jwt = false
+
+[functions.set-new-password]
+verify_jwt = true
+
+[functions.change-password]
+verify_jwt = true
 
 [functions.children]
 verify_jwt = true
