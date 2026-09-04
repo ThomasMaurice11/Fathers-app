@@ -3,6 +3,11 @@
 //
 // Logged-in user changes password after verifying the current one.
 // verify_jwt = true.
+//
+// Password update uses Auth REST PUT /auth/v1/user with the request
+// Bearer token. supabase.auth.updateUser() fails here with
+// "Auth session missing!" because the Edge Function client has no
+// in-memory session.
 
 import { corsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { getAuthenticatedUser } from "../_shared/supabaseClient.ts";
@@ -11,7 +16,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return errorResponse("Method not allowed", 405);
 
-  const { supabase, user } = await getAuthenticatedUser(req);
+  const { user } = await getAuthenticatedUser(req);
   if (!user) return errorResponse("Unauthorized", 401);
 
   let body: { current_password?: string; new_password?: string };
@@ -34,6 +39,7 @@ Deno.serve(async (req: Request) => {
     return errorResponse("User email is missing", 400);
   }
 
+  const authHeader = req.headers.get("Authorization") ?? "";
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
 
@@ -50,9 +56,22 @@ Deno.serve(async (req: Request) => {
     return errorResponse("Current password is incorrect", 401);
   }
 
-  const { error } = await supabase.auth.updateUser({ password: newPassword });
-  if (error) {
-    return errorResponse(error.message ?? "Failed to update password", 400);
+  const updateRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+    method: "PUT",
+    headers: {
+      apikey: anonKey,
+      Authorization: authHeader,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ password: newPassword }),
+  });
+
+  if (!updateRes.ok) {
+    const data = await updateRes.json().catch(() => ({}));
+    return errorResponse(
+      data.msg ?? data.error_description ?? data.error ?? "Failed to update password",
+      updateRes.status,
+    );
   }
 
   return jsonResponse({
