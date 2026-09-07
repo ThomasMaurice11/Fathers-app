@@ -13,6 +13,7 @@
 //   POST   /:id/operations            -> create an operation
 //   PATCH  /:id/operations/:operationId -> update an operation
 //   DELETE /:id/operations/:operationId -> delete an operation
+//   GET    /:id/events                -> notifications/events for a child
 
 import { corsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { getAuthenticatedUser } from "../_shared/supabaseClient.ts";
@@ -20,6 +21,30 @@ import { enrichIdsWithNames } from "../_shared/names.ts";
 
 function childNameExistsMessage() {
   return "This child already exists";
+}
+
+/** Egyptian mobile 010/011/012/015. Accepts local, +20, or 0020. Returns +20… or null if blank/invalid. */
+function normalizeEgyptianPhone(input: string | null | undefined): string | null {
+  if (input == null) return null;
+  const raw = input.trim();
+  if (!raw) return null;
+
+  let digits = raw.replace(/[^\d+]/g, "");
+  if (digits.startsWith("+")) digits = digits.slice(1);
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.startsWith("0") && !digits.startsWith("20")) {
+    digits = `20${digits.slice(1)}`;
+  }
+
+  if (!/^201[0125]\d{8}$/.test(digits)) return null;
+  return `+${digits}`;
+}
+
+function parseOptionalEgyptianPhone(input: string | null | undefined): { ok: true; value: string | null } | { ok: false } {
+  if (input == null || !String(input).trim()) return { ok: true, value: null };
+  const normalized = normalizeEgyptianPhone(input);
+  if (!normalized) return { ok: false };
+  return { ok: true, value: normalized };
 }
 
 function mapChildWriteError(error: { code?: string; message: string }) {
@@ -43,6 +68,22 @@ Deno.serve(async (req: Request) => {
 
   const rest = parsePath(req);
   const [id, subresource, subresourceId] = rest;
+
+  // ---------- /children/:id/events ----------
+  if (id && subresource === "events") {
+    if (req.method === "GET" && !subresourceId) {
+      const { data, error } = await supabase
+        .from("notifications")
+        .select("*")
+        .eq("child_id", id)
+        .order("notification_date", { ascending: false });
+
+      if (error) return errorResponse(error.message, 400);
+      return jsonResponse({ data: await enrichIdsWithNames(supabase, data) });
+    }
+
+    return errorResponse("Method not allowed", 405);
+  }
 
   // ---------- /children/:id/operations[/:operationId] ----------
   if (id && subresource === "operations") {
@@ -220,6 +261,7 @@ Deno.serve(async (req: Request) => {
         name?: string;
         birthday?: string | null;
         marriage_contract?: string | null;
+        phone_number?: string | null;
         stage_id?: number;
       };
       try {
@@ -244,6 +286,16 @@ Deno.serve(async (req: Request) => {
           return errorResponse("marriage_contract must be a valid date", 400);
         }
         update.marriage_contract = body.marriage_contract;
+      }
+      if (body.phone_number !== undefined) {
+        const phone = parseOptionalEgyptianPhone(body.phone_number);
+        if (!phone.ok) {
+          return errorResponse(
+            "phone_number must be a valid Egyptian mobile (010, 011, 012, or 015)",
+            400,
+          );
+        }
+        update.phone_number = phone.value;
       }
       if (body.stage_id !== undefined) update.stage_id = body.stage_id;
 
@@ -323,6 +375,7 @@ Deno.serve(async (req: Request) => {
       name?: string;
       birthday?: string;
       marriage_contract?: string;
+      phone_number?: string | null;
       stage_id?: number;
     };
     try {
@@ -342,6 +395,14 @@ Deno.serve(async (req: Request) => {
     }
     if (body.marriage_contract && isNaN(Date.parse(body.marriage_contract))) {
       return errorResponse("marriage_contract must be a valid date", 400);
+    }
+
+    const phone = parseOptionalEgyptianPhone(body.phone_number);
+    if (!phone.ok) {
+      return errorResponse(
+        "phone_number must be a valid Egyptian mobile (010, 011, 012, or 015)",
+        400,
+      );
     }
 
     const trimmedName = body.name.trim();
@@ -366,6 +427,7 @@ Deno.serve(async (req: Request) => {
         name: trimmedName,
         birthday: body.birthday ?? null,
         marriage_contract: body.marriage_contract ?? null,
+        phone_number: phone.value,
         stage_id: body.stage_id,
       })
       .select()
