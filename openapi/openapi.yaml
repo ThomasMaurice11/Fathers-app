@@ -255,7 +255,7 @@ components:
         children_needing_confession_count:
           type: integer
           example: 3
-          description: Number of children with an overdue or missing confession
+          description: Number of children with an overdue confession (last confession more than 27 days ago; missing confessions are excluded)
         birthdays_this_week_count:
           type: integer
           example: 2
