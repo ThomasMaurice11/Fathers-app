@@ -325,6 +325,7 @@ Deno.serve(async (req: Request) => {
         birthday?: string | null;
         marriage_contract?: string | null;
         phone_number?: string | null;
+        phone_number_2?: string | null;
         marital_status?: string;
         marriage_date?: string | null;
         stage_id?: number;
@@ -361,6 +362,16 @@ Deno.serve(async (req: Request) => {
           );
         }
         update.phone_number = phone.value;
+      }
+      if (body.phone_number_2 !== undefined) {
+        const phone2 = parseOptionalEgyptianPhone(body.phone_number_2);
+        if (!phone2.ok) {
+          return errorResponse(
+            "phone_number_2 must be a valid Egyptian mobile (010, 011, 012, or 015)",
+            400,
+          );
+        }
+        update.phone_number_2 = phone2.value;
       }
       if (body.stage_id !== undefined) update.stage_id = body.stage_id;
 
@@ -464,6 +475,7 @@ Deno.serve(async (req: Request) => {
       birthday?: string;
       marriage_contract?: string;
       phone_number?: string | null;
+      phone_number_2?: string | null;
       marital_status?: string;
       marriage_date?: string | null;
       stage_id?: number;
@@ -491,6 +503,14 @@ Deno.serve(async (req: Request) => {
     if (!phone.ok) {
       return errorResponse(
         "phone_number must be a valid Egyptian mobile (010, 011, 012, or 015)",
+        400,
+      );
+    }
+
+    const phone2 = parseOptionalEgyptianPhone(body.phone_number_2);
+    if (!phone2.ok) {
+      return errorResponse(
+        "phone_number_2 must be a valid Egyptian mobile (010, 011, 012, or 015)",
         400,
       );
     }
@@ -525,6 +545,7 @@ Deno.serve(async (req: Request) => {
         birthday: body.birthday ?? null,
         marriage_contract: body.marriage_contract ?? null,
         phone_number: phone.value,
+        phone_number_2: phone2.value,
         marital_status: marital.marital_status ?? "single",
         marriage_date: marital.marriage_date ?? null,
         stage_id: body.stage_id,

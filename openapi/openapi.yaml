@@ -116,6 +116,7 @@ components:
         birthday: { type: string, format: date, nullable: true, example: "2010-08-20" }
         marriage_contract: { type: string, format: date, nullable: true, example: "2030-06-15" }
         phone_number: { type: string, nullable: true, example: "+201012345678" }
+        phone_number_2: { type: string, nullable: true, example: "+201112345678" }
         marital_status:
           type: string
           enum: [single, married]
@@ -141,6 +142,7 @@ components:
         birthday: { type: string, format: date, example: "2010-08-20" }
         marriage_contract: { type: string, format: date, nullable: true, example: "2030-06-15" }
         phone_number: { type: string, nullable: true, example: "+201012345678" }
+        phone_number_2: { type: string, nullable: true, example: "+201112345678" }
         marital_status:
           type: string
           enum: [single, married]
@@ -155,6 +157,7 @@ components:
         birthday: { type: string, format: date, nullable: true }
         marriage_contract: { type: string, format: date, nullable: true }
         phone_number: { type: string, nullable: true }
+        phone_number_2: { type: string, nullable: true }
         marital_status:
           type: string
           enum: [single, married]
