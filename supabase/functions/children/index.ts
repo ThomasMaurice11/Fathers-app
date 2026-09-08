@@ -47,9 +47,72 @@ function parseOptionalEgyptianPhone(input: string | null | undefined): { ok: tru
   return { ok: true, value: normalized };
 }
 
+type MaritalStatus = "single" | "married";
+
+function parseMaritalStatus(input: unknown): { ok: true; value: MaritalStatus } | { ok: false } {
+  if (input === "single" || input === "married") return { ok: true, value: input };
+  return { ok: false };
+}
+
+/** Resolve marital_status + marriage_date together. marriage_date is cleared when single. */
+function resolveMaritalFields(opts: {
+  maritalStatus?: unknown;
+  marriageDate?: string | null;
+  /** When patching, current DB values if status/date not both provided */
+  currentStatus?: MaritalStatus;
+  requireStatus?: boolean;
+}):
+  | { ok: true; marital_status?: MaritalStatus; marriage_date?: string | null }
+  | { ok: false; error: string } {
+  const statusProvided = opts.maritalStatus !== undefined;
+  const dateProvided = opts.marriageDate !== undefined;
+
+  if (!statusProvided && !dateProvided) return { ok: true };
+
+  let status: MaritalStatus | undefined;
+  if (statusProvided) {
+    const parsed = parseMaritalStatus(opts.maritalStatus);
+    if (!parsed.ok) {
+      return { ok: false, error: "marital_status must be 'single' or 'married'" };
+    }
+    status = parsed.value;
+  } else if (opts.requireStatus) {
+    return { ok: false, error: "marital_status is required" };
+  } else {
+    status = opts.currentStatus;
+  }
+
+  if (status === undefined) {
+    return { ok: false, error: "marital_status is required when setting marriage_date" };
+  }
+
+  let marriageDate: string | null | undefined;
+  if (status === "single") {
+    marriageDate = null;
+  } else if (dateProvided) {
+    if (opts.marriageDate !== null && opts.marriageDate !== "" && isNaN(Date.parse(opts.marriageDate))) {
+      return { ok: false, error: "marriage_date must be a valid date" };
+    }
+    marriageDate = opts.marriageDate && String(opts.marriageDate).trim()
+      ? opts.marriageDate
+      : null;
+  } else if (statusProvided) {
+    // Switching to married without a date — leave date as-is on patch, null on create
+    marriageDate = opts.currentStatus === undefined ? null : undefined;
+  }
+
+  const result: { marital_status?: MaritalStatus; marriage_date?: string | null } = {};
+  if (statusProvided || opts.requireStatus) result.marital_status = status;
+  if (marriageDate !== undefined) result.marriage_date = marriageDate;
+  return { ok: true, ...result };
+}
+
 function mapChildWriteError(error: { code?: string; message: string }) {
   if (error.code === "23505") return errorResponse(childNameExistsMessage(), 409);
   if (error.code === "23503") return errorResponse("stage_id does not exist", 400);
+  if (error.code === "23514") {
+    return errorResponse("marriage_date is only allowed when marital_status is married", 400);
+  }
   return errorResponse(error.message, 400);
 }
 
@@ -262,6 +325,8 @@ Deno.serve(async (req: Request) => {
         birthday?: string | null;
         marriage_contract?: string | null;
         phone_number?: string | null;
+        marital_status?: string;
+        marriage_date?: string | null;
         stage_id?: number;
       };
       try {
@@ -298,6 +363,29 @@ Deno.serve(async (req: Request) => {
         update.phone_number = phone.value;
       }
       if (body.stage_id !== undefined) update.stage_id = body.stage_id;
+
+      if (body.marital_status !== undefined || body.marriage_date !== undefined) {
+        let currentStatus: MaritalStatus | undefined;
+        if (body.marital_status === undefined) {
+          const { data: current, error: currentError } = await supabase
+            .from("children")
+            .select("marital_status")
+            .eq("id", id)
+            .maybeSingle();
+          if (currentError) return errorResponse(currentError.message, 400);
+          if (!current) return errorResponse("Child not found or not owned by you", 404);
+          currentStatus = current.marital_status as MaritalStatus;
+        }
+
+        const marital = resolveMaritalFields({
+          maritalStatus: body.marital_status,
+          marriageDate: body.marriage_date,
+          currentStatus,
+        });
+        if (!marital.ok) return errorResponse(marital.error, 400);
+        if (marital.marital_status !== undefined) update.marital_status = marital.marital_status;
+        if (marital.marriage_date !== undefined) update.marriage_date = marital.marriage_date;
+      }
 
       if (Object.keys(update).length === 0) {
         return errorResponse("No updatable fields supplied", 400);
@@ -376,6 +464,8 @@ Deno.serve(async (req: Request) => {
       birthday?: string;
       marriage_contract?: string;
       phone_number?: string | null;
+      marital_status?: string;
+      marriage_date?: string | null;
       stage_id?: number;
     };
     try {
@@ -405,6 +495,13 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    const marital = resolveMaritalFields({
+      maritalStatus: body.marital_status ?? "single",
+      marriageDate: body.marriage_date ?? null,
+      requireStatus: true,
+    });
+    if (!marital.ok) return errorResponse(marital.error, 400);
+
     const trimmedName = body.name.trim();
 
     const { data: existing } = await supabase
@@ -428,6 +525,8 @@ Deno.serve(async (req: Request) => {
         birthday: body.birthday ?? null,
         marriage_contract: body.marriage_contract ?? null,
         phone_number: phone.value,
+        marital_status: marital.marital_status ?? "single",
+        marriage_date: marital.marriage_date ?? null,
         stage_id: body.stage_id,
       })
       .select()

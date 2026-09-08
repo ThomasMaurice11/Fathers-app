@@ -116,6 +116,11 @@ components:
         birthday: { type: string, format: date, nullable: true, example: "2010-08-20" }
         marriage_contract: { type: string, format: date, nullable: true, example: "2030-06-15" }
         phone_number: { type: string, nullable: true, example: "+201012345678" }
+        marital_status:
+          type: string
+          enum: [single, married]
+          example: single
+        marriage_date: { type: string, format: date, nullable: true, example: "2024-06-15" }
         age: { type: integer, nullable: true, example: 16 }
         stage_id: { type: integer, example: 9 }
         stage: { type: string, example: "1st Prep" }
@@ -136,6 +141,11 @@ components:
         birthday: { type: string, format: date, example: "2010-08-20" }
         marriage_contract: { type: string, format: date, nullable: true, example: "2030-06-15" }
         phone_number: { type: string, nullable: true, example: "+201012345678" }
+        marital_status:
+          type: string
+          enum: [single, married]
+          default: single
+        marriage_date: { type: string, format: date, nullable: true, example: "2024-06-15" }
         stage_id: { type: integer, example: 9 }
 
     ChildUpdate:
@@ -145,6 +155,10 @@ components:
         birthday: { type: string, format: date, nullable: true }
         marriage_contract: { type: string, format: date, nullable: true }
         phone_number: { type: string, nullable: true }
+        marital_status:
+          type: string
+          enum: [single, married]
+        marriage_date: { type: string, format: date, nullable: true }
         stage_id: { type: integer }
 
     ChildDetail:
