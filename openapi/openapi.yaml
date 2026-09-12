@@ -283,7 +283,7 @@ components:
         general_events_this_week_count:
           type: integer
           example: 4
-          description: Number of general events with notification_date from today through today+6 days (inclusive rolling window)
+          description: Number of general events with notification_date from today through today+6 days (inclusive rolling window; today = Africa/Cairo local date)
         birthdays_yesterday:
           type: array
           items: { $ref: '#/components/schemas/Birthday' }
@@ -299,7 +299,7 @@ components:
         general_events_this_week:
           type: array
           items: { $ref: '#/components/schemas/Notification' }
-          description: General events with notification_date from today through today+6 days (inclusive); not calendar Mon–Sun
+          description: General events with notification_date from today through today+6 days (inclusive; today = Africa/Cairo local date, not UTC)
 
     ErrorResponse:
       type: object

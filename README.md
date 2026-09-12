@@ -173,7 +173,7 @@ a test user from your frontend and logging the session.
 | GET | `/birthdays/today` | Today's birthdays |
 | GET | `/birthdays?date=YYYY-MM-DD` | Birthdays for a date (month/day only) |
 | GET | `/stages` | List the 19 predefined stages (read-only) |
-| GET | `/dashboard` | Combined dashboard payload (general events = today through today+6, not calendar week) |
+| GET | `/dashboard` | Combined dashboard payload (dates in Africa/Cairo; general events = today through today+6) |
 
 ### Examples
 
