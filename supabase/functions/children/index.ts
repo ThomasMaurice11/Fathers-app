@@ -23,6 +23,10 @@ function childNameExistsMessage() {
   return "This child already exists";
 }
 
+function confessionSameDayMessage() {
+  return "لا يمكن تسجيل اعترافين لنفس الابن في نفس اليوم";
+}
+
 /** Egyptian mobile 010/011/012/015. Accepts local, +20, or 0020. Returns +20… or null if blank/invalid. */
 function normalizeEgyptianPhone(input: string | null | undefined): string | null {
   if (input == null) return null;
@@ -289,6 +293,9 @@ Deno.serve(async (req: Request) => {
       });
 
       if (error) {
+        if (error.code === "23505") {
+          return errorResponse(confessionSameDayMessage(), 409);
+        }
         const status = error.code === "42501" ? 403 : 400;
         return errorResponse(error.message, status);
       }
