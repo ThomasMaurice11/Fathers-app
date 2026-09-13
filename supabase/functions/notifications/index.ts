@@ -1,6 +1,8 @@
 // Routes (relative to /functions/v1/notifications):
-//   GET  /month?year=YYYY&month=M  -> general events for a given month (defaults to current)
-//   POST /                         -> create a general event/notification
+//   GET    /month?year=YYYY&month=M  -> general events for a given month (defaults to current)
+//   POST   /                         -> create a general event/notification
+//   PATCH  /:id                      -> update a general event/notification
+//   DELETE /:id                      -> delete a general event/notification
 
 import { corsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { getAuthenticatedUser } from "../_shared/supabaseClient.ts";
@@ -63,6 +65,81 @@ Deno.serve(async (req: Request) => {
 
     if (error) return errorResponse(error.message, 400);
     return jsonResponse({ data: await enrichIdsWithNames(supabase, data) });
+  }
+
+  // ---------- /notifications/:id ----------
+  if (rest.length === 1 && rest[0] !== "month") {
+    const id = rest[0];
+
+    if (req.method === "PATCH") {
+      let body: {
+        title?: string;
+        message?: string | null;
+        notification_date?: string;
+        child_id?: string | null;
+      };
+      try {
+        body = await req.json();
+      } catch {
+        return errorResponse("Invalid JSON body", 400);
+      }
+
+      const update: Record<string, unknown> = {};
+
+      if (body.title !== undefined) {
+        if (!body.title.trim()) return errorResponse("title cannot be blank", 400);
+        update.title = body.title.trim();
+      }
+      if (body.message !== undefined) {
+        update.message = body.message?.trim() ? body.message.trim() : null;
+      }
+      if (body.notification_date !== undefined) {
+        if (!body.notification_date || isNaN(Date.parse(body.notification_date))) {
+          return errorResponse("notification_date must be a valid date", 400);
+        }
+        update.notification_date = body.notification_date;
+      }
+      if (body.child_id !== undefined) {
+        update.child_id = body.child_id ?? null;
+      }
+
+      if (Object.keys(update).length === 0) {
+        return errorResponse("No updatable fields supplied", 400);
+      }
+
+      const { data, error } = await supabase
+        .from("notifications")
+        .update(update)
+        .eq("id", id)
+        .eq("type", "GENERAL")
+        .select()
+        .maybeSingle();
+
+      if (error) return errorResponse(error.message, 400);
+      if (!data) return errorResponse("Notification not found or not owned by you", 404);
+
+      return jsonResponse({
+        success: true,
+        data: await enrichIdsWithNames(supabase, data),
+      });
+    }
+
+    if (req.method === "DELETE") {
+      const { data, error } = await supabase
+        .from("notifications")
+        .delete()
+        .eq("id", id)
+        .eq("type", "GENERAL")
+        .select("id")
+        .maybeSingle();
+
+      if (error) return errorResponse(error.message, 400);
+      if (!data) return errorResponse("Notification not found or not owned by you", 404);
+
+      return jsonResponse({ success: true, data: { id: data.id } });
+    }
+
+    return errorResponse("Method not allowed", 405);
   }
 
   // ---------- POST /notifications ----------
