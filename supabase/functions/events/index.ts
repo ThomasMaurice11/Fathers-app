@@ -10,6 +10,7 @@
 import { corsHeaders, jsonResponse, errorResponse } from "../_shared/cors.ts";
 import { getAuthenticatedUser } from "../_shared/supabaseClient.ts";
 import { enrichIdsWithNames } from "../_shared/names.ts";
+import { parseOptionalEventTime } from "../_shared/eventTime.ts";
 
 function parsePath(req: Request) {
   const segments = new URL(req.url).pathname.split("/").filter(Boolean);
@@ -35,6 +36,7 @@ Deno.serve(async (req: Request) => {
       .select("*")
       .eq("type", "GENERAL")
       .eq("notification_date", new Date().toISOString().slice(0, 10))
+      .order("event_time", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: false });
 
     if (error) return errorResponse(error.message, 400);
@@ -53,6 +55,7 @@ Deno.serve(async (req: Request) => {
       .select("*")
       .eq("type", "GENERAL")
       .eq("notification_date", date)
+      .order("event_time", { ascending: true, nullsFirst: false })
       .order("created_at", { ascending: false });
 
     if (error) return errorResponse(error.message, 400);
@@ -90,6 +93,7 @@ Deno.serve(async (req: Request) => {
         message?: string | null;
         event_date?: string;
         notification_date?: string;
+        event_time?: string | null;
         child_id?: string | null;
       };
       try {
@@ -114,6 +118,11 @@ Deno.serve(async (req: Request) => {
           return errorResponse("event_date must be a valid date", 400);
         }
         update.notification_date = dateValue;
+      }
+      if (body.event_time !== undefined) {
+        const parsed = parseOptionalEventTime(body.event_time);
+        if (!parsed.ok) return errorResponse(parsed.error, 400);
+        update.event_time = parsed.time;
       }
       if (body.child_id !== undefined) {
         update.child_id = body.child_id ?? null;
@@ -176,6 +185,7 @@ Deno.serve(async (req: Request) => {
       title?: string;
       message?: string;
       event_date?: string;
+      event_time?: string | null;
       child_id?: string | null;
     };
     try {
@@ -189,6 +199,9 @@ Deno.serve(async (req: Request) => {
       return errorResponse("event_date must be a valid date", 400);
     }
 
+    const parsedTime = parseOptionalEventTime(body.event_time);
+    if (!parsedTime.ok) return errorResponse(parsedTime.error, 400);
+
     const { data, error } = await supabase
       .from("notifications")
       .insert({
@@ -197,6 +210,7 @@ Deno.serve(async (req: Request) => {
         title: body.title.trim(),
         message: body.message?.trim() ? body.message.trim() : null,
         notification_date: body.event_date,
+        event_time: parsedTime.time,
         child_id: body.child_id ?? null,
       })
       .select()

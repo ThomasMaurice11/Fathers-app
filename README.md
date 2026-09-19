@@ -169,7 +169,7 @@ a test user from your frontend and logging the session.
 | POST | `/events` | Create a general event |
 | PATCH | `/events/:id/read` | Mark a general event as read |
 | GET | `/notifications/month` | Month events (`?year=&month=`, defaults to current UTC) |
-| POST | `/notifications` | Create notification (`title`, `notification_date`, optional `message`/`child_id`) |
+| POST | `/notifications` | Create notification (`title`, `notification_date`, optional `message`/`event_time`/`child_id`) |
 | GET | `/birthdays/today` | Today's birthdays |
 | GET | `/birthdays?date=YYYY-MM-DD` | Birthdays for a date (month/day only) |
 | GET | `/stages` | List the 19 predefined stages (read-only) |

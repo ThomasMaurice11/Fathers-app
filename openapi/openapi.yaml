@@ -242,6 +242,7 @@ components:
         title: { type: string, example: "Church Meeting" }
         message: { type: string, nullable: true, example: "Meeting at 7 PM" }
         notification_date: { type: string, format: date, example: "2026-08-20" }
+        event_time: { type: string, format: time, nullable: true, example: "19:00:00", description: "Optional clock time (HH:MM or HH:MM:SS); null/omitted = unspecified" }
         status: { type: string, enum: [SCHEDULED, DELIVERED, READ] }
         is_read: { type: boolean }
         created_at: { type: string, format: date-time }
@@ -253,6 +254,7 @@ components:
         title: { type: string, example: "Church Meeting" }
         message: { type: string, example: "Meeting at 7 PM" }
         notification_date: { type: string, format: date, example: "2026-08-20" }
+        event_time: { type: string, format: time, nullable: true, example: "19:00", description: "Optional; omit or null for no specific time" }
         child_id: { type: string, format: uuid, nullable: true }
 
     Birthday:
