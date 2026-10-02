@@ -62,6 +62,9 @@ verify_jwt = true
 [functions.birthdays]
 verify_jwt = true
 
+[functions.mark-birthday-acknowledged]
+verify_jwt = true
+
 [functions.stages]
 verify_jwt = true
 
