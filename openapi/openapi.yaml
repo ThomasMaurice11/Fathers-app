@@ -277,11 +277,11 @@ components:
         children_needing_confession_count:
           type: integer
           example: 3
-          description: Number of children with an overdue confession (last confession more than 27 days ago; missing confessions are excluded)
+          description: Number of children with an overdue confession (last confession 30 days ago or older; missing confessions are excluded)
         birthdays_this_week_count:
           type: integer
           example: 2
-          description: Number of children with a birthday falling within the current week (Mon–Sun)
+          description: Number of children with a birthday yesterday, today, or tomorrow (Africa/Cairo). Same children as birthdays_yesterday, birthdays_today, and birthdays_tomorrow combined. Already acknowledged occurrences are excluded.
         general_events_this_week_count:
           type: integer
           example: 4

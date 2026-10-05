@@ -335,6 +335,7 @@ Deno.serve(async (req: Request) => {
         phone_number_2?: string | null;
         marital_status?: string;
         marriage_date?: string | null;
+        special_case?: boolean;
         stage_id?: number;
       };
       try {
@@ -379,6 +380,12 @@ Deno.serve(async (req: Request) => {
           );
         }
         update.phone_number_2 = phone2.value;
+      }
+      if (body.special_case !== undefined) {
+        if (typeof body.special_case !== "boolean") {
+          return errorResponse("special_case must be a boolean", 400);
+        }
+        update.special_case = body.special_case;
       }
       if (body.stage_id !== undefined) update.stage_id = body.stage_id;
 
@@ -485,6 +492,7 @@ Deno.serve(async (req: Request) => {
       phone_number_2?: string | null;
       marital_status?: string;
       marriage_date?: string | null;
+      special_case?: boolean;
       stage_id?: number;
     };
     try {
@@ -522,6 +530,10 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    if (body.special_case !== undefined && typeof body.special_case !== "boolean") {
+      return errorResponse("special_case must be a boolean", 400);
+    }
+
     const marital = resolveMaritalFields({
       maritalStatus: body.marital_status ?? "single",
       marriageDate: body.marriage_date ?? null,
@@ -555,6 +567,7 @@ Deno.serve(async (req: Request) => {
         phone_number_2: phone2.value,
         marital_status: marital.marital_status ?? "single",
         marriage_date: marital.marriage_date ?? null,
+        special_case: body.special_case ?? false,
         stage_id: body.stage_id,
       })
       .select()

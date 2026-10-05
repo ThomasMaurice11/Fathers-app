@@ -286,7 +286,7 @@ only in the raw `curl` examples above.
   and `/children/:id/confessions`).
 - **Confession reminders are never stored.** `get_confession_reminders()`
   computes everything live from `children` + `confession_history`,
-  applying the 27-day rule, the snooze date, and the read flag exactly
+  applying the 30-day rule (overdue at 30 days or more), the snooze date, and the read flag exactly
   as specified.
 - **`create_confession()`** is one Postgres function = one transaction:
   insert the history row, then reset `reminder_is_read`/
